@@ -1,0 +1,719 @@
+---
+title: "Research Workshop Paper - Code Report"
+output:
+  pdf_document: default
+  word_document: default
+date: '2023-05-25'
+---
+
+```{r load libraries, include=FALSE}
+
+library(readxl)
+library(mgcv)
+library(itsadug)
+library(dplyr)
+library(dunn.test)
+library(ggplot2)
+
+tinytex::install_tinytex()
+
+```
+
+```{r dataset}
+rw_data <- read_excel("/Users/camillacarnevalemaffe/Desktop/Research Workshop/RW_Data.xlsx")
+rw_data$Participant = as.factor(rw_data$Participant)
+rw_data$Pair = as.factor(rw_data$Pair)
+rw_data$Stimulus = as.factor(rw_data$Stimulus)
+rw_data$Characteristic = as.factor(rw_data$Characteristic)
+rw_data$Age = as.numeric(rw_data$Age)
+rw_data$Gender = as.character(rw_data$Gender)
+rw_data$Sexuality = as.factor(rw_data$Sexuality)
+rw_data$Continent = as.factor(rw_data$Continent)
+rw_data$Country = as.factor(rw_data$Country)
+rw_data$Naturalness = as.numeric(rw_data$Naturalness)
+rw_data$Valence = as.numeric(rw_data$Valence)
+rw_data$Arousal = as.numeric(rw_data$Arousal)
+```
+
+
+
+```{r preliminary inspections, echo=FALSE}
+#describe(rw_data)
+#describe.by(rw_data, group = rw_data$Participant)
+summary(rw_data)
+
+
+hist(rw_data$Valence)
+hist(rw_data$Naturalness)
+hist(rw_data$Arousal)
+```
+
+```{r demos inspection, echo=FALSE}
+#demos inspections
+# mean age
+mean_age <- aggregate(Age ~ Participant, data = rw_data, FUN = function(x) mean(x, na.rm = TRUE))
+
+print(mean(mean_age$Age))
+print(sd(mean_age$Age))
+
+gender_counts <- rw_data %>%
+  distinct(Participant, .keep_all = TRUE) %>%
+  count(Gender)
+
+sexuality_count <- rw_data %>%
+  distinct(Participant, .keep_all = TRUE) %>%
+  count(Sexuality)
+print(sexuality_count)
+# mean age per gender
+print(gender_counts)
+
+mean_age_per_gender <- rw_data %>%
+  distinct(Participant, .keep_all = TRUE) %>%
+  group_by(Gender) %>%
+  summarize(mean_age = mean(Age, na.rm = TRUE))
+
+print(mean_age_per_gender)
+
+#sd age per gender
+sd_age_per_gender <- rw_data %>%
+  distinct(Participant, .keep_all = TRUE) %>%
+  group_by(Gender) %>%
+  summarize(sd_age = sd(Age, na.rm = TRUE))
+
+# Print the mean age per gender
+print(sd_age_per_gender)
+```
+
+```{r data inspection, echo=FALSE}
+#data inspection
+#mean of value of naturalness,valence, arousal per characteristic
+mean_nat_per_char <- rw_data %>%
+  group_by(Characteristic) %>%
+  summarize(mean_nat = mean(Naturalness, na.rm = TRUE))
+
+print(mean_nat_per_char)
+
+mean_val_per_char <- rw_data %>%
+  group_by(Characteristic) %>%
+  summarize(mean_val = mean(Valence, na.rm = TRUE))
+
+print(mean_val_per_char)
+
+mean_ar_per_char <- rw_data %>%
+  group_by(Characteristic) %>%
+  summarize(mean_ar = mean(Arousal, na.rm = TRUE))
+
+print(mean_ar_per_char)
+
+#mean of value of naturalness,valence, arousal per pair
+mean_nat_per_pair <- rw_data %>%
+  group_by(Pair) %>%
+  summarize(mean_nat = mean(Naturalness, na.rm = TRUE))
+
+print(mean_nat_per_pair)
+
+mean_val_per_pair <- rw_data %>%
+  group_by(Pair) %>%
+  summarize(mean_val = mean(Valence, na.rm = TRUE))
+
+print(mean_val_per_pair)
+
+mean_ar_per_pair <- rw_data %>%
+  group_by(Pair) %>%
+  summarize(mean_ar = mean(Arousal, na.rm = TRUE))
+
+print(mean_ar_per_pair)
+
+#mean of value of naturalness,valence, arousal per stimulus, check for stim exclusion
+mean_nat_per_stim <- rw_data %>%
+  group_by(Stimulus) %>%
+  summarize(mean_nat = mean(Naturalness, na.rm = TRUE))
+
+print(mean_nat_per_stim)
+
+write.csv(mean_nat_per_stim, "mean_nat_per_stim.csv", row.names = FALSE)
+
+
+mean_val_per_stim <- rw_data %>%
+  group_by(Stimulus) %>%
+  summarize(mean_val = mean(Valence, na.rm = TRUE))
+
+# Export the data frame to CSV file
+write.csv(mean_val_per_stim, "mean_val_per_stim.csv", row.names = FALSE)
+
+
+mean_ar_per_stim <- rw_data%>%
+  group_by(Stimulus) %>%
+  summarize(mean_ar = mean(Arousal, na.rm = TRUE))
+
+write.csv(mean_ar_per_stim, "mean_ar_per_stim.csv", row.names = FALSE)
+print(mean_ar_per_pair)
+```
+
+```{r second-degree polynomial regression, echo=FALSE}
+# Perform second-degree polynomial regression
+model_ar_val <- lm(Arousal ~ Valence + I(Valence^2), data = rw_data)
+
+summary(model_ar_val)
+```
+
+```{r stim percpetion by char, echo=FALSE}
+# affective (valence) perception of positve, negative and neutral stimuli
+positive_data <- subset(rw_data, Characteristic == "Positive" & !is.na(Valence))
+
+median_valence <- median(positive_data$Valence)
+mad_valence <- mad(positive_data$Valence)
+
+print(median_valence)
+print(mad_valence)
+
+
+negative_data <- subset(rw_data, Characteristic == "Negative" & !is.na(Valence))
+
+median_valence_neg <- median(negative_data$Valence)
+mad_valence_neg <- mad(negative_data$Valence)
+
+print(median_valence_neg)
+print(mad_valence_neg)
+
+neutral_data <- subset(rw_data, Characteristic == "Neutral" & !is.na(Valence))
+
+median_valence_net <- median(neutral_data$Valence)
+mad_valence_net <- mad(neutral_data$Valence)
+
+print(median_valence_net)
+print(mad_valence_net)
+```
+```{r nat percpetion by char, echo=FALSE}
+#naturalness perception of positve, negative and neutral stimuli
+positive_data <- subset(rw_data, Characteristic == "Positive" & !is.na(Naturalness))
+
+median_nat <- median(positive_data$Naturalness)
+mad_nat <- mad(positive_data$Naturalness)
+
+print(median_nat)
+print(mad_nat)
+
+
+negative_data <- subset(rw_data, Characteristic == "Negative" & !is.na(Naturalness))
+
+median_nat_neg <- median(negative_data$Naturalness)
+mad_nat_neg <- mad(negative_data$Naturalness)
+
+print(median_nat_neg)
+print(mad_nat_neg)
+
+neutral_data <- subset(rw_data, Characteristic == "Neutral" & !is.na(Naturalness))
+
+median_nat_net <- median(neutral_data$Naturalness)
+mad_nat_net <- mad(neutral_data$Naturalness)
+
+print(median_nat_net)
+print(mad_nat_net)
+```
+```{r arousal percpetion by char, echo=FALSE}
+#perception of positve, negative and neutral stimuli for arousal 
+positive_data_Arousal <- subset(rw_data, Characteristic == "Positive" & !is.na(Arousal))
+
+median_Arousal<- median(positive_data_Arousal$Arousal)
+mad_Arousal <- mad(positive_data_Arousal$Arousal)
+
+print(median_Arousal)
+print(mad_Arousal)
+
+
+negative_data_Arousal <- subset(rw_data, Characteristic == "Negative" & !is.na(Arousal))
+
+median_Arousal_neg <- median(negative_data_Arousal$Arousal)
+mad_Arousal_neg <- mad(negative_data_Arousal$Arousal)
+
+print(median_Arousal_neg)
+print(mad_Arousal_neg)
+
+neutral_data_Arousal <- subset(rw_data, Characteristic == "Neutral" & !is.na(Arousal))
+
+median_Arousal_net <- median(neutral_data$Arousal)
+mad_Arousal_net <- mad(neutral_data$Arousal)
+
+print(median_Arousal_net)
+print(mad_Arousal_net)
+```
+
+```{r perception valence by char, echo=FALSE}
+#perception difference according to char for valence
+t_test_result <- t.test(positive_data$Valence, negative_data$Valence)
+print(t_test_result)
+
+
+t_test_result1 <- t.test(positive_data$Valence, neutral_data$Valence)
+print(t_test_result1)
+
+
+t_test_result2 <- t.test(negative_data$Valence, neutral_data$Valence)
+print(t_test_result2)
+
+positive_data <- subset(rw_data, Characteristic == "Positive" & !is.na(Valence))
+negative_data <- subset(rw_data, Characteristic == "Negative" & !is.na(Valence))
+
+
+```
+
+```{r boxplot ratings/pair, echo=FALSE}
+#boxplot ratings/pair
+subset_data <- rw_data[, c("Valence", "Pair")]
+boxplot(Valence ~ Pair, data = subset_data, main = "Valence Ratings by Pair of Actors", xlab = "Pair of Actors", ylab = "Valence")
+
+subset_data_ar<- rw_data[, c("Arousal", "Pair")]
+boxplot(Arousal ~ Pair, data = subset_data_ar, main = "Arousal Ratings by Pair of Actors", xlab = "Pair of Actors", ylab = "Arousal")
+
+subset_data_nat <- rw_data[, c("Naturalness", "Pair")]
+boxplot(Naturalness ~ Pair, data = subset_data_nat, main = "Naturalness Ratings by Pair of Actors", xlab = "Pair of Actors", ylab = "Naturalness")
+
+```
+
+
+```{r reg rating\actors+stim, echo=FALSE}
+#lr ratings and pair of actors+stim
+#regression for  if the naturalness score of each stimulus is influenced by the pair that acts the stimulus
+regression_analysis <- lm(Naturalness ~ Stimulus + Pair, data = rw_data)
+
+print(summary(regression_analysis))#not ideal bc of colinearity
+
+#regression for  if the valence score of each stimulus is influenced by the pair that acts the stimulus
+regression_analysis2 <- lm(Valence  ~ Stimulus + Pair, data = rw_data)
+
+print(summary(regression_analysis2))#not ideal bc of colinearity
+
+
+#regression for  if the arousal score of each stimulus is influenced by the pair that acts the stimulus
+regression_analysis3 <- lm(Arousal  ~ Stimulus + Pair, data = rw_data)
+
+# Print the regression analysis summary
+print(summary(regression_analysis3))#not ideal bc of colinearity
+```
+
+```{r handle colinearity, echo=FALSE}
+#to handle colinearity
+modeln <- gam(Naturalness ~ Pair + Stimulus, data = rw_data)
+
+# Print the summary of the model
+print(summary(modeln))
+
+
+modeln2 <- gam(Naturalness ~ Pair, data = rw_data)
+# Print the summary of the model
+print(summary(modeln2))
+
+
+modelv <- gam(Valence ~ Pair + Stimulus, data = rw_data)
+
+# Print the summary of the model
+print(summary(modelv))
+
+
+modelv2 <- gam(Valence ~ Pair, data = rw_data)
+
+# Print the summary of the model
+print(summary(modelv2))
+```
+
+```{r kruskal, echo=FALSE}
+#kruskal analysis
+#rating and pair
+kruskal_result <- kruskal.test(Naturalness ~ Pair, data = rw_data)
+kruskal_result
+
+kruskal_result2 <- kruskal.test(Valence ~ Pair, data = rw_data)
+kruskal_result2 #stat relevant
+
+kruskal_result3 <- kruskal.test(Arousal ~ Pair, data = rw_data)
+kruskal_result3
+
+# Perform pairwise comparisons for Valence
+pairwise.wilcox.test(rw_data$Valence, rw_data$Pair, p.adjust.method = "bonferroni")
+
+#raiting and char
+kruskal_resulta <- kruskal.test(Naturalness ~ Characteristic, data = rw_data)
+kruskal_resulta
+
+kruskal_result2a <- kruskal.test(Valence ~ Characteristic, data = rw_data)
+kruskal_result2a
+
+kruskal_result3a <- kruskal.test(Arousal ~ Characteristic, data = rw_data)
+kruskal_result3a
+
+
+pairwise.wilcox.test(rw_data$Naturalness, rw_data$Characteristic, p.adjust.method = "bonferroni")
+pairwise.wilcox.test(rw_data$Valence, rw_data$Characteristic, p.adjust.method = "bonferroni")
+pairwise.wilcox.test(rw_data$Arousal, rw_data$Characteristic, p.adjust.method = "bonferroni")
+
+#rating and gender
+kruskal_resultb <- kruskal.test(Naturalness ~ Gender, data = rw_data)
+kruskal_resultb
+
+kruskal_result2b <- kruskal.test(Valence ~ Gender, data = rw_data)
+kruskal_result2b
+
+kruskal_result3b <- kruskal.test(Arousal ~ Gender, data = rw_data)
+kruskal_result3b
+
+pairwise.wilcox.test(rw_data$Naturalness, rw_data$Gender, p.adjust.method = "bonferroni")
+pairwise.wilcox.test(rw_data$Valence, rw_data$Gender, p.adjust.method = "bonferroni")
+pairwise.wilcox.test(rw_data$Arousal, rw_data$Gender, p.adjust.method = "bonferroni")
+
+#rating and age
+kruskal_resultc <- kruskal.test(Naturalness ~ Age, data = rw_data)
+kruskal_resultc
+
+kruskal_result2c <- kruskal.test(Valence ~ Age, data = rw_data)
+kruskal_result2c
+
+kruskal_result3c <- kruskal.test(Arousal ~ Age, data = rw_data)
+kruskal_result3c
+
+pairwise.wilcox.test(rw_data$Naturalness, rw_data$Age, p.adjust.method = "bonferroni")
+
+pairwise.wilcox.test(rw_data$Valence, rw_data$Age, p.adjust.method = "bonferroni")
+
+# Perform pairwise comparisons for Arousal
+pairwise.wilcox.test(rw_data$Arousal, rw_data$Age, p.adjust.method = "bonferroni")
+
+
+kruskal_resultd <- kruskal.test(Naturalness ~ Sexuality, data = rw_data)
+kruskal_resultd
+
+kruskal_result2d <- kruskal.test(Valence ~ Sexuality, data = rw_data)
+kruskal_result2d
+
+kruskal_result3d <- kruskal.test(Arousal ~ Sexuality, data = rw_data)
+kruskal_result3d
+
+pairwise.wilcox.test(rw_data$Naturalness, rw_data$Sexuality, p.adjust.method = "bonferroni")
+
+# Perform pairwise comparisons for Valence
+pairwise.wilcox.test(rw_data$Valence, rw_data$Sexuality, p.adjust.method = "bonferroni")
+
+# Perform pairwise comparisons for Arousal
+pairwise.wilcox.test(rw_data$Arousal, rw_data$Sexuality, p.adjust.method = "bonferroni")
+
+#further investigate rating and sexuality for het vs hom
+# Subset the data for the two groups of interest (heterosexual and homosexual)
+heterosexual_data <- subset(rw_data, Sexuality == "Heterosexual")$Arousal
+homosexual_data <- subset(rw_data, Sexuality == "Homosexual")$Arousal
+
+wilcox.test(heterosexual_data, homosexual_data, alternative = "two.sided", correct = TRUE)
+
+heterosexual_dataa <- subset(rw_data, Sexuality == "Heterosexual")$Valence
+homosexual_dataa <- subset(rw_data, Sexuality == "Homosexual")$Valence
+
+wilcox.test(heterosexual_dataa, homosexual_dataa, alternative = "two.sided", correct = TRUE)
+
+
+kruskal_resulte <- kruskal.test(Naturalness ~ Continent, data = rw_data)
+kruskal_resulte
+
+kruskal_result2e <- kruskal.test(Valence ~ Continent, data = rw_data)
+kruskal_result2e
+
+kruskal_result3e <- kruskal.test(Arousal ~ Continent, data = rw_data)
+kruskal_result3e
+
+pairwise.wilcox.test(rw_data$Naturalness, rw_data$Continent, p.adjust.method = "bonferroni")
+
+# Perform pairwise comparisons for Valence
+pairwise.wilcox.test(rw_data$Valence, rw_data$Continent, p.adjust.method = "bonferroni")
+
+# Perform pairwise comparisons for Arousal
+pairwise.wilcox.test(rw_data$Arousal, rw_data$Continent, p.adjust.method = "bonferroni")
+
+
+
+kruskal_resultf <- kruskal.test(Naturalness ~ Country, data = rw_data)
+kruskal_resultf
+
+kruskal_result2f <- kruskal.test(Valence ~ Country, data = rw_data)
+kruskal_result2f
+
+kruskal_result3f <- kruskal.test(Arousal ~ Country, data = rw_data)
+kruskal_result3f
+
+pairwise.wilcox.test(rw_data$Naturalness, rw_data$Country, p.adjust.method = "bonferroni")
+
+# Perform pairwise comparisons for Valence
+pairwise.wilcox.test(rw_data$Valence, rw_data$Country, p.adjust.method = "bonferroni")
+
+# Perform pairwise comparisons for Arousal
+pairwise.wilcox.test(rw_data$Arousal, rw_data$Country, p.adjust.method = "bonferroni")
+
+
+
+kruskal_resultg <- kruskal.test(Naturalness ~ Valence, data = rw_data)
+kruskal_resultg
+
+kruskal_result2g <- kruskal.test(Naturalness ~ Arousal, data = rw_data)
+kruskal_result2g
+
+pairwise.wilcox.test(rw_data$Naturalness, rw_data$Valence, p.adjust.method = "bonferroni")
+pairwise.wilcox.test(rw_data$Naturalness, rw_data$Arousal, p.adjust.method = "bonferroni")
+```
+
+```{r pearson, echo=FALSE}
+#Pearson corr
+correlation_result <- cor.test(rw_data$Naturalness, rw_data$Valence)
+
+print(correlation_result$estimate)  # Pearson correlation coefficient
+print(correlation_result$p.value)   # p-value
+
+correlation_resulta <- cor.test(rw_data$Naturalness, rw_data$Arousal)
+
+print(correlation_resulta$estimate)  # Pearson correlation coefficient
+print(correlation_resulta$p.value)   # p-value
+
+
+correlation_resultb <- cor.test(rw_data$Valence, rw_data$Arousal)
+
+print(correlation_resultb$estimate)  # Pearson correlation coefficient
+print(correlation_resultb$p.value)   # p-value
+```
+
+```{r lr rating pair, echo=FALSE}
+#linear reg rating and pair 
+# Linear regression for Naturalness rating
+model_naturalness <- lm(Naturalness ~ Pair, data = rw_data)
+summary(model_naturalness)
+
+
+# Linear regression for Valence rating
+model_valence <- lm(Valence ~ Pair, data = rw_data)
+summary(model_valence)
+
+# Linear regression for Arousal rating
+model_arousal <- lm(Arousal ~ Pair, data = rw_data)
+summary(model_arousal)
+```
+
+```{r le rating char, echo=FALSE}
+#linear regression rating and char(ref level "neutral")
+rw_data$Characteristic <- relevel(rw_data$Characteristic, ref = "Neutral")
+
+model_naturalness_char <- lm(Naturalness ~ Characteristic, data = rw_data)
+summary(model_naturalness_char)
+
+# Linear regression for Valence rating
+model_valence_char <- lm(Valence ~ Characteristic, data = rw_data)
+summary(model_valence_char)
+
+# Linear regression for Arousal rating
+model_arousal_char <- lm(Arousal ~ Characteristic, data = rw_data)
+summary(model_arousal_char)
+```
+```{r lr rating age, echo=FALSE}
+# lr rating and age
+#naturalness rating
+model_naturalness_Age <- lm(Naturalness ~ Age, data = rw_data)
+summary(model_naturalness_Age)
+
+# Linear regression for Valence rating
+model_valence_Age <- lm(Valence ~ Age, data = rw_data)
+summary(model_valence_Age)
+
+# Linear regression for Arousal rating
+model_arousal_Age <- lm(Arousal ~ Age, data = rw_data)
+summary(model_arousal_Age)
+```
+
+```{r lr rating gender, echo=FALSE}
+# lr rating and gender
+#naturalness rating
+model_naturalness_Gender <- lm(Naturalness ~ Gender, data = rw_data)
+summary(model_naturalness_Gender)
+
+# Linear regression for Valence rating
+model_valence_Gender <- lm(Valence ~ Gender, data = rw_data)
+summary(model_valence_Gender)
+
+# Linear regression for Arousal rating
+model_arousal_Gender <- lm(Arousal ~ Gender, data = rw_data)
+summary(model_arousal_Gender)
+```
+
+```{r lr rating sexuality, echo=FALSE}
+#lr rating and sexuality(ref level het)
+rw_data$Sexuality <- relevel(rw_data$Sexuality, ref = "Heterosexual")
+model_naturalness_Sexuality <- lm(Naturalness ~ Sexuality, data = rw_data)
+summary(model_naturalness_Sexuality)
+
+# Linear regression for Valence rating
+model_valence_Sexuality <- lm(Valence ~ Sexuality, data = rw_data)
+summary(model_valence_Sexuality)
+
+# Linear regression for Arousal rating
+model_arousal_Sexuality <- lm(Arousal ~ Sexuality, data = rw_data)
+summary(model_arousal_Sexuality)
+```
+
+```{r lr rating cont, echo=FALSE}
+#lr rating and continent(ref level europe)
+rw_data$Continent <- relevel(rw_data$Continent, ref = "Europe")
+model_naturalness_Continent <- lm(Naturalness ~ Continent, data = rw_data)
+summary(model_naturalness_Continent)
+
+# Linear regression for Valence rating
+model_valence_Continent <- lm(Valence ~ Continent, data = rw_data)
+summary(model_valence_Continent)
+
+# Linear regression for Arousal rating
+model_arousal_Continent <- lm(Arousal ~ Continent, data = rw_data)
+summary(model_arousal_Continent)
+```
+
+```{r lr rating count, echo=FALSE}
+#lr rating and country(ref level nl)
+rw_data$Country <- relevel(rw_data$Country, ref = "Netherlands")
+model_naturalness_Country <- lm(Naturalness ~ Country, data = rw_data)
+summary(model_naturalness_Country)
+
+# Linear regression for Valence rating
+model_valence_Country <- lm(Valence ~ Country, data = rw_data)
+summary(model_valence_Country)
+
+# Linear regression for Arousal rating
+model_arousal_Country <- lm(Arousal ~ Country, data = rw_data)
+summary(model_arousal_Country)
+```
+
+```{r spearman and missing val, echo=FALSE}
+#remove missing values and spearman correlation
+missing_values <- sum(is.na(rw_data$Naturalness) | is.na(rw_data$Valence))
+rw_data_clean <- na.omit(rw_data[c("Naturalness", "Valence")])
+
+cor_nat_val <- cor(rw_data_clean$Naturalness, rw_data_clean$Valence, method = "spearman")
+print(cor_nat_val)
+
+missing_values2 <- sum(is.na(rw_data$Naturalness) | is.na(rw_data$Arousal))
+rw_data_clean2 <- na.omit(rw_data[c("Naturalness", "Arousal")])
+
+cor_nat_ar<- cor(rw_data_clean2$Naturalness, rw_data_clean2$Arousal, method = "spearman")
+print(cor_nat_ar)
+
+missing_values3 <- sum(is.na(rw_data$Valence) | is.na(rw_data$Arousal))
+rw_data_clean3 <- na.omit(rw_data[c("Valence", "Arousal")])
+
+cor_val_ar<- cor(rw_data_clean3$Valence, rw_data_clean3$Arousal, method = "spearman")
+print(cor_val_ar)
+```
+
+```{r graph, echo=FALSE}
+#graph for u shape relation between valence and arousal
+# Calculate the median averaged group ratings for valence and arousal
+median_valence <- aggregate(Valence ~ Stimulus, data = rw_data, FUN = median)
+median_arousal <- aggregate(Arousal ~ Stimulus, data = rw_data, FUN = median)
+
+# Fit a quadratic function to the data
+fit <- lm(median_arousal$Arousal ~ median_valence$Valence + I(median_valence$Valence^2))
+
+# Generate a sequence of values for valence
+valence_seq <- seq(1, 7, length.out = 100)
+arousal_seq <- seq(1, 7, length.out = 100)
+
+# Predict the corresponding arousal values using the fitted model
+predicted_arousal <- predict(fit, newdata = data.frame(Valence = valence_seq))
+predicted_valence <- predict(fit, newdata = data.frame(Arousal = arousal_seq))
+
+data_points <- data.frame(Valence = median_valence$Valence, Arousal = median_arousal$Arousal)
+# Set theme options for the plot
+theme_set(theme_minimal(base_size = 12))
+
+# Create the plot
+ggplot(data_points, aes(x = Valence, y = Arousal)) +
+  geom_point(color = "blue", size = 3) +
+  geom_smooth(method = "lm", formula = y ~ x + I(x^2), se = FALSE, color = "red", size = 1) +
+  xlim(1, 7) +
+  ylim(1, 7) +
+  labs(x = "Valence", y = "Arousal") +
+  theme(axis.title = element_text(size = 14, face = "bold"),
+        axis.text = element_text(size = 12),
+        legend.title = element_blank(),
+        legend.text = element_text(size = 12)) +
+  scale_x_continuous(breaks = seq(1, 7, by = 1)) +
+  scale_y_continuous(breaks = seq(1, 7, by = 1)) +
+  guides(color = guide_legend(override.aes = list(size = 1))) +
+  ggtitle("Relationship between Valence and Arousal") +
+  theme(plot.title = element_text(size = 16, face = "bold", hjust = 0.5),
+        panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        panel.border = element_blank(),
+        axis.line = element_line(color = "black"))
+
+```
+ 
+ 
+ 
+```{r graph2, echo=FALSE}
+library(ggplot2)
+
+# Create a vector with all the stimuli you want to include
+# Create a vector with all the stimuli you want to include
+all_stimuli <- 1:32
+
+# Check which stimuli are missing in the dataframe
+missing_stimuli <- setdiff(all_stimuli, unique(rw_data$Stimulus))
+
+# Create a new dataframe with missing stimuli and NAs for valence ratings
+if (length(missing_stimuli) > 0) {
+  missing_df <- data.frame(Stimulus = missing_stimuli, Valence = NA, Characteristic = NA)
+  
+  # Combine the original dataframe with the missing stimuli dataframe
+  rw_data <- rbind(rw_data, missing_df)
+  
+  # Sort the dataframe by Stimuli column
+  rw_data <- rw_data[order(rw_data$Stimulus), ]
+}
+
+
+# Create boxplot with customized elements
+ggplot(rw_data, aes(x = Stimulus, y = Valence, fill = Characteristic)) +
+  geom_boxplot(
+    outlier.shape = 16,
+    outlier.colour = "black",
+    outlier.fill = "black",
+    notch = FALSE,
+    width = 0.7,
+    alpha = 0.8,
+    fatten = 0.5,
+    color = "black"
+  ) +
+  geom_crossbar(
+    stat = "summary",
+    fun.data = "median_hilow",
+    width = 0.5,
+    fatten = 2,
+    fill = "transparent",
+    color = "black"
+  ) +
+  geom_errorbar(
+    stat = "summary",
+    fun.data = "mean_sdl",
+    width = 0.2,
+    fatten = 2,
+    color = "black",
+    size = 0.5
+  ) +
+  geom_hline(yintercept = 4, linetype = "dashed", color = "black") +
+  geom_point(data = subset(rw_data, Valence > 4 | Valence < 4), shape = 1, color = "black", size = 3) +
+  labs(title = "Valence Ratings per Stimuli", x = "Stimuli", y = "Valence") +
+  scale_fill_manual(values = c("Positive" = "#32CD32", "Negative" = "#FF0000", "Neutral" = "#9400D3")) +
+  theme_minimal() +
+  theme(
+    panel.grid.major = element_blank(),
+    panel.grid.minor = element_blank(),
+    panel.border = element_blank(),
+    legend.position = "bottom",
+    legend.title = element_blank(),
+    legend.key.size = unit(1, "cm"),
+    axis.text.x = element_text(angle = 45, vjust = 1, hjust = 1)
+  )
+
+
+1
+```
